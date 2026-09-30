@@ -146,7 +146,7 @@ jobs:
           # noVNC 与 websockify 均不经 Homebrew (homebrew-core 无这两个 formula):
           # noVNC 官方 release 不发布资产, 分发物是 tag 源码归档; websockify 走 PyPI 纯
           # Python wheel, venv 内安装 (PEP 668 仅拦 venv 之外的解释器), numpy 可选故 --no-deps
-          curl -sSL -o /tmp/novnc.tar.gz https://github.com/novnc/noVNC/archive/refs/tags/v1.7.0.tar.gz
+          curl -sSLf -o /tmp/novnc.tar.gz https://github.com/novnc/noVNC/archive/refs/tags/v1.7.0.tar.gz
           tar -xzf /tmp/novnc.tar.gz -C /tmp
           NOVNC_DIR=/tmp/noVNC-1.7.0
           test -f "$NOVNC_DIR/vnc.html"
@@ -156,7 +156,9 @@ jobs:
           nohup /tmp/wsenv/bin/websockify --web "$NOVNC_DIR" 6080 localhost:5900 \
             > "$GITHUB_WORKSPACE/sim-artifacts/16-websockify.log" 2>&1 &
           sleep 2
-          curl -sSL -o ngrok.zip https://ngrok-agent.s3.amazonaws.com/ngrok-v3-stable-darwin-arm64.zip
+          # 地址取自 ngrok 官网下载页 (bin.equinox.io 的镜像域名), 无版本化 API;
+          # 上游换域名时以 https://ngrok.com/download 现值为准
+          curl -sSLf -o ngrok.zip https://bin.ngrok.com/c/bNyj1mQVY4c/ngrok-v3-stable-darwin-arm64.zip
           unzip -o ngrok.zip ngrok
           chmod +x ngrok
           ./ngrok config add-authtoken "$NGROK_AUTH_TOKEN" >/dev/null
