@@ -79,40 +79,25 @@ jobs:
             -clientopts -setvnclegacy -vnclegacy yes -setvncpw -vncpw "12345678" \
             -restart -agent -console
 
-      # 启动代理和隧道: 本步骤执行完毕后退出, 触发 GitHub Actions 立即向网页推送 Notice
-      - name: Start noVNC and Tunnel
+      # 隧道守护与保活合一: cloudflared 崩溃自动重启, 新域名实时打到本步骤日志(网页实时可见)
+      - name: Start noVNC, Tunnel & Keep Alive
         run: |
           git clone --depth 1 https://github.com/novnc/noVNC.git /tmp/noVNC
           # 强制纯 VNC 密码认证: 新版 noVNC 按服务器偏好会优先选 ARD 系统账号认证
           sed -i '' '/securityTypeARD,/d' /tmp/noVNC/core/rfb.js
           nohup /tmp/noVNC/utils/novnc_proxy --vnc 127.0.0.1:5900 --listen 6080 >/dev/null 2>&1 &
-          
           brew install cloudflared
-          nohup cloudflared tunnel --protocol http2 --url http://127.0.0.1:6080 > /tmp/cf.log 2>&1 &
-          
-          URL=""
-          for i in $(seq 1 30); do
-            URL="$(grep -oE 'https://[a-zA-Z0-9-]+\.trycloudflare\.com' /tmp/cf.log | head -1 || true)"
-            [ -n "$URL" ] && break
-            sleep 1
+          END=$(( $(date +%s) + ${{ github.event.inputs.duration_hours }} * 3600 ))
+          while [ "$(date +%s)" -lt "$END" ]; do
+            if ! pgrep -f "cloudflared tunnel" >/dev/null; then
+              nohup cloudflared tunnel --protocol http2 --url http://127.0.0.1:6080 > /tmp/cf.log 2>&1 &
+              for i in $(seq 1 30); do
+                URL="$(grep -oE 'https://[a-zA-Z0-9-]+\.trycloudflare\.com' /tmp/cf.log | head -1 || true)"
+                [ -n "$URL" ] && break
+                sleep 1
+              done
+              # 密码不入 URL: GitHub 对 password= 参数打码致复制失效; resize=scale 根治画面不缩放
+              [ -n "$URL" ] && echo "直连网址: $URL/vnc.html?autoconnect=true&resize=scale (VNC 密码 12345678)"
+            fi
+            sleep 20
           done
-          
-          if [ -z "$URL" ]; then
-            echo "::error::未获取到隧道 URL, 日志:"
-            cat /tmp/cf.log
-            exit 1
-          fi
-          
-          PAGE="$URL/vnc.html?autoconnect=true&password=12345678"
-          
-          # 本 Step 结束时, 该 Notice 会立即呈现在 GitHub Actions 网页顶部的 Annotations 区域
-          echo "::notice title=DIRECT_URL::$PAGE"
-          echo "=========================================="
-          echo "直连网址: $PAGE"
-          echo "VNC 密码: 12345678"
-          echo "=========================================="
-
-      # 独立保活 Step: 保持会话运行, 不阻碍上一步向网页推送直连地址
-      - name: Keep Alive
-        run: |
-          sleep $(( ${{ github.event.inputs.duration_hours }} * 3600 ))
