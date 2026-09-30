@@ -48,8 +48,14 @@ jobs:
 
       - name: Enable Screen Sharing
         run: |
-          # 兜底: ARD 认证走系统账号, runner 密码随机生成, 重设为已知密码
-          sudo dscl . -passwd /Users/runner "12345678"
+          # 兜底: ARD 认证走系统账号, 新建用户设初始密码无需旧密码 (fastmac configure.sh 验证做法)
+          sudo dscl . -create /Users/vncuser
+          sudo dscl . -create /Users/vncuser UserShell /bin/bash
+          sudo dscl . -create /Users/vncuser RealName "VNC User"
+          sudo dscl . -create /Users/vncuser UniqueID 1001
+          sudo dscl . -create /Users/vncuser PrimaryGroupID 80
+          sudo dscl . -create /Users/vncuser NFSHomeDirectory /Users/vncuser
+          sudo dscl . -passwd /Users/vncuser "12345678"
           sudo /System/Library/CoreServices/RemoteManagement/ARDAgent.app/Contents/Resources/kickstart \
             -activate -configure -allowAccessFor -allUsers -privs -all \
             -clientopts -setvnclegacy -vnclegacy yes -setvncpw -vncpw "12345678" \
