@@ -53,18 +53,15 @@ jobs:
             -clientopts -setvnclegacy -vnclegacy yes -setvncpw -vncpw "12345678" \
             -restart -agent -console
 
-      # 核心闭环: 同一 Step 内启动代理、建立隧道、发出通知并保持会话, 杜绝跨 Step 杀进程
-      - name: Start noVNC, Tunnel & Keep Alive
+      # 启动代理和隧道: 本步骤执行完毕后退出, 触发 GitHub Actions 立即向网页推送 Notice
+      - name: Start noVNC and Tunnel
         run: |
-          # 1. 运行 noVNC 官方自带代理
           git clone --depth 1 https://github.com/novnc/noVNC.git /tmp/noVNC
           nohup /tmp/noVNC/utils/novnc_proxy --vnc 127.0.0.1:5900 --listen 6080 >/dev/null 2>&1 &
           
-          # 2. 官方快速隧道
           brew install cloudflared
           nohup cloudflared tunnel --protocol http2 --url http://127.0.0.1:6080 > /tmp/cf.log 2>&1 &
           
-          # 轮询获取隧道域名 (最多等 30 秒)
           URL=""
           for i in $(seq 1 30); do
             URL="$(grep -oE 'https://[a-zA-Z0-9-]+\.trycloudflare\.com' /tmp/cf.log | head -1 || true)"
@@ -80,12 +77,14 @@ jobs:
           
           PAGE="$URL/vnc.html?autoconnect=true&password=12345678"
           
-          # 实时推送通知到 GitHub 顶层 Annotations
+          # 本 Step 结束时, 该 Notice 会立即呈现在 GitHub Actions 网页顶部的 Annotations 区域
           echo "::notice title=DIRECT_URL::$PAGE"
           echo "=========================================="
           echo "直连网址: $PAGE"
           echo "VNC 密码: 12345678"
           echo "=========================================="
-          
-          # 3. 阻塞保持会话
+
+      # 独立保活 Step: 保持会话运行, 不阻碍上一步向网页推送直连地址
+      - name: Keep Alive
+        run: |
           sleep $(( ${{ github.event.inputs.duration_hours }} * 3600 ))
