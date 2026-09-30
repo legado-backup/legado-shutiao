@@ -48,6 +48,8 @@ jobs:
 
       - name: Enable Screen Sharing
         run: |
+          # 兜底: ARD 认证走系统账号, runner 密码随机生成, 重设为已知密码
+          sudo dscl . -passwd /Users/runner "12345678"
           sudo /System/Library/CoreServices/RemoteManagement/ARDAgent.app/Contents/Resources/kickstart \
             -activate -configure -allowAccessFor -allUsers -privs -all \
             -clientopts -setvnclegacy -vnclegacy yes -setvncpw -vncpw "12345678" \
@@ -57,6 +59,8 @@ jobs:
       - name: Start noVNC and Tunnel
         run: |
           git clone --depth 1 https://github.com/novnc/noVNC.git /tmp/noVNC
+          # 强制纯 VNC 密码认证: 新版 noVNC 按服务器偏好会优先选 ARD 系统账号认证
+          sed -i '' '/securityTypeARD,/d' /tmp/noVNC/core/rfb.js
           nohup /tmp/noVNC/utils/novnc_proxy --vnc 127.0.0.1:5900 --listen 6080 >/dev/null 2>&1 &
           
           brew install cloudflared
