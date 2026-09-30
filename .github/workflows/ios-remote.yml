@@ -28,6 +28,15 @@ jobs:
           GH_TOKEN: ${{ github.token }}
         run: |
           set -o pipefail
+          # 防 console 锁屏: 锁屏需随机密码解锁, VNC 无法进入; console 登录用户为 Anka 虚拟化账户, 两者都写
+          for U in anka Anka runner; do
+            if id "$U" >/dev/null 2>&1; then
+              sudo -u "$U" defaults -currentHost write com.apple.screensaver idleTime -int 0
+              sudo -u "$U" defaults -currentHost write com.apple.screensaver askForPassword -int 0
+            fi
+          done
+          sudo systemsetup -setcomputersleep Never -setdisplaysleep Never
+          nohup caffeinate -dimsu >/dev/null 2>&1 &
           ASSET="$(gh release view multiplatform-test --repo "$GITHUB_REPOSITORY" --json assets \
             --jq '[.assets[].name | select(endswith("-ios-simulator.zip"))] | sort | last // empty')"
           if [ -z "$ASSET" ]; then
