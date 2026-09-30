@@ -48,11 +48,15 @@ jobs:
 
       - name: Enable Screen Sharing
         run: |
-          # macos-26 镜像未给屏幕共享服务录屏授权导致 VNC 黑屏; 按 actions/runner-images#9529 实证运行时写入系统 TCC.db
+          # macos-26 镜像未给屏幕共享服务录屏/事件注入/辅助功能授权, 致 VNC 黑屏且无法操作; 按 actions/runner-images#9529 实证运行时写入系统 TCC.db
           DB="/Library/Application Support/com.apple.TCC/TCC.db"
-          V="'kTCCServiceScreenCapture','com.apple.screensharing.agent',0,2,4,1,NULL,NULL,0,'UNUSED',NULL,0,1708076718,NULL,NULL,'UNUSED',1708076718"
-          sudo sqlite3 "$DB" "INSERT OR REPLACE INTO access VALUES($V);"
-          sudo sqlite3 "$DB" "SELECT client,auth_value FROM access WHERE service='kTCCServiceScreenCapture';"
+          for C in "'com.apple.screensharing.agent',0" "'/System/Library/CoreServices/RemoteManagement/ARDAgent.app/Contents/MacOS/ARDAgent',1"; do
+            for S in kTCCServiceScreenCapture kTCCServicePostEvent kTCCServiceAccessibility; do
+              sudo sqlite3 "$DB" "INSERT OR REPLACE INTO access VALUES('$S',$C,2,4,1,NULL,NULL,0,'UNUSED',NULL,0,1708076718,NULL,NULL,'UNUSED',1708076718);"
+            done
+          done
+          sudo sqlite3 "$DB" "SELECT service,client,auth_value FROM access WHERE client LIKE '%screensharing%' OR client LIKE '%ARDAgent%';"
+          sudo killall tccd
           # 兜底: ARD 认证走系统账号, 新建用户设初始密码无需旧密码 (fastmac configure.sh 验证做法)
           sudo dscl . -create /Users/vncuser
           sudo dscl . -create /Users/vncuser UserShell /bin/bash
